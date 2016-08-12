@@ -337,18 +337,18 @@ HacksAndPatchesARMEL() {
   Banner "Misc Hacks & Patches"
   # these are linker scripts with absolute pathnames in them
   # which we rewrite here
-  lscripts="${INSTALL_ROOT}/usr/lib/arm-linux-gnueabihf/libpthread.so \
-            ${INSTALL_ROOT}/usr/lib/arm-linux-gnueabihf/libc.so"
+  lscripts="${INSTALL_ROOT}/usr/lib/arm-linux-gnueabi/libpthread.so \
+            ${INSTALL_ROOT}/usr/lib/arm-linux-gnueabi/libc.so"
 
   # Rewrite linker scripts
-  sed -i -e 's|/usr/lib/arm-linux-gnueabihf/||g' ${lscripts}
-  sed -i -e 's|/lib/arm-linux-gnueabihf/||g' ${lscripts}
+  sed -i -e 's|/usr/lib/arm-linux-gnueabi/||g' ${lscripts}
+  sed -i -e 's|/lib/arm-linux-gnueabi/||g' ${lscripts}
 
   # This is for chrome's ./build/linux/pkg-config-wrapper
   # which overwrites PKG_CONFIG_PATH internally
   SubBanner "Move pkgconfig scripts"
   mkdir -p ${INSTALL_ROOT}/usr/lib/pkgconfig
-  mv ${INSTALL_ROOT}/usr/lib/arm-linux-gnueabihf/pkgconfig/* \
+  mv ${INSTALL_ROOT}/usr/lib/arm-linux-gnueabi/pkgconfig/* \
       ${INSTALL_ROOT}/usr/lib/pkgconfig
 }
 
@@ -426,12 +426,14 @@ CleanupJailSymlinks() {
     case "${link}" in
       usr/lib/gcc/x86_64-linux-gnu/4.*/* | usr/lib/gcc/i486-linux-gnu/4.*/* | \
       usr/lib/gcc/arm-linux-gnueabihf/4.*/* | \
+      usr/lib/gcc/arm-linux-gnueabi/4.*/* | \
       usr/lib/gcc/mipsel-linux-gnu/4.*/*)
         # Relativize the symlink.
         ln -snfv "../../../../..${target}" "${link}"
         ;;
       usr/lib/x86_64-linux-gnu/* | usr/lib/i386-linux-gnu/* | \
-      usr/lib/arm-linux-gnueabihf/* | usr/lib/mipsel-linux-gnu/* )
+      usr/lib/arm-linux-gnueabihf/* | \
+      usr/lib/arm-linux-gnueabi/* | usr/lib/mipsel-linux-gnu/* )
         # Relativize the symlink.
         ln -snfv "../../..${target}" "${link}"
         ;;
@@ -514,16 +516,24 @@ BuildSysrootARM() {
 #@
 #@    Build everything and package it
 BuildSysrootARMEL() {
+  echo "Clear"
   ClearInstallDir
   local package_file="$BUILD_DIR/package_with_sha256sum_armel"
+  echo "Generate"
   GeneratePackageListARMEL "$package_file"
   local files_and_sha256sums="$(cat ${package_file})"
+  echo "Strip"
   StripChecksumsFromPackageList "$package_file"
+  echo "Verify"
   VerifyPackageFilesMatch "$package_file" "$DEBIAN_DEP_LIST_ARMEL"
   APT_REPO=${APR_REPO_ARMEL:=$APT_REPO}
+  echo "install"
   InstallIntoSysroot ${files_and_sha256sums}
+  echo "CleanUp"
   CleanupJailSymlinks
+  echo "Hack"
   HacksAndPatchesARMEL
+  echo "Creat tar."
   CreateTarBall
 }
 
