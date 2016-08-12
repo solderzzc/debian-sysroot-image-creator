@@ -63,15 +63,18 @@ readonly RELEASE_LIST_GPG="${REPO_BASEDIR}/${RELEASE_FILE_GPG}"
 readonly PACKAGE_FILE_AMD64="main/binary-amd64/Packages.bz2"
 readonly PACKAGE_FILE_I386="main/binary-i386/Packages.bz2"
 readonly PACKAGE_FILE_ARM="main/binary-armhf/Packages.bz2"
+readonly PACKAGE_FILE_ARMEL="main/binary-armel/Packages.bz2"
 readonly PACKAGE_FILE_MIPS="main/binary-mipsel/Packages.bz2"
 readonly PACKAGE_LIST_AMD64="${REPO_BASEDIR}/${PACKAGE_FILE_AMD64}"
 readonly PACKAGE_LIST_I386="${REPO_BASEDIR}/${PACKAGE_FILE_I386}"
 readonly PACKAGE_LIST_ARM="${REPO_BASEDIR}/${PACKAGE_FILE_ARM}"
+readonly PACKAGE_LIST_ARMEL="${REPO_BASEDIR}/${PACKAGE_FILE_ARMEL}"
 readonly PACKAGE_LIST_MIPS="${REPO_BASEDIR}/${PACKAGE_FILE_MIPS}"
 
 readonly DEBIAN_DEP_LIST_AMD64="packagelist.${DIST}.amd64"
 readonly DEBIAN_DEP_LIST_I386="packagelist.${DIST}.i386"
 readonly DEBIAN_DEP_LIST_ARM="packagelist.${DIST}.arm"
+readonly DEBIAN_DEP_LIST_ARMEL="packagelist.${DIST}.armel"
 readonly DEBIAN_DEP_LIST_MIPS="packagelist.${DIST}.mipsel"
 
 ######################################################################
@@ -127,6 +130,9 @@ SetEnvironmentVariables() {
   fi
   if [ -z "$ARCH" ]; then
     echo $1 | grep -qs ARM$ && ARCH=ARM
+  fi
+  if [ -z "$ARCH" ]; then
+    echo $1 | grep -qs ARMEL$ && ARCH=ARMEL
   fi
   if [ -z "${ARCH}" ]; then
     echo "ERROR: Unable to determine architecture based on: $1"
@@ -216,6 +222,17 @@ GeneratePackageListARM() {
   ExtractPackageBz2 "$package_list" "$tmp_package_list"
   GeneratePackageList "$tmp_package_list" "$output_file" "${DEBIAN_PACKAGES}"
 }
+
+GeneratePackageListARMEL() {
+  local output_file="$1"
+  local package_list="${BUILD_DIR}/Packages.${DIST}_armel.bz2"
+  local tmp_package_list="${BUILD_DIR}/Packages.${DIST}_armel"
+  DownloadOrCopy "${PACKAGE_LIST_ARMEL}" "${package_list}"
+  # VerifyPackageListing "${PACKAGE_FILE_ARMEL}" "${package_list}"
+  ExtractPackageBz2 "$package_list" "$tmp_package_list"
+  GeneratePackageList "$tmp_package_list" "$output_file" "${DEBIAN_PACKAGES}"
+}
+
 
 GeneratePackageListMips() {
   local output_file="$1"
@@ -316,6 +333,24 @@ HacksAndPatchesARM() {
       ${INSTALL_ROOT}/usr/lib/pkgconfig
 }
 
+HacksAndPatchesARMEL() {
+  Banner "Misc Hacks & Patches"
+  # these are linker scripts with absolute pathnames in them
+  # which we rewrite here
+  lscripts="${INSTALL_ROOT}/usr/lib/arm-linux-gnueabihf/libpthread.so \
+            ${INSTALL_ROOT}/usr/lib/arm-linux-gnueabihf/libc.so"
+
+  # Rewrite linker scripts
+  sed -i -e 's|/usr/lib/arm-linux-gnueabihf/||g' ${lscripts}
+  sed -i -e 's|/lib/arm-linux-gnueabihf/||g' ${lscripts}
+
+  # This is for chrome's ./build/linux/pkg-config-wrapper
+  # which overwrites PKG_CONFIG_PATH internally
+  SubBanner "Move pkgconfig scripts"
+  mkdir -p ${INSTALL_ROOT}/usr/lib/pkgconfig
+  mv ${INSTALL_ROOT}/usr/lib/arm-linux-gnueabihf/pkgconfig/* \
+      ${INSTALL_ROOT}/usr/lib/pkgconfig
+}
 
 HacksAndPatchesMips() {
   Banner "Misc Hacks & Patches"
@@ -475,6 +510,24 @@ BuildSysrootARM() {
 }
 
 #@
+#@ BuildSysrootARMEL
+#@
+#@    Build everything and package it
+BuildSysrootARMEL() {
+  ClearInstallDir
+  local package_file="$BUILD_DIR/package_with_sha256sum_armel"
+  GeneratePackageListARMEL "$package_file"
+  local files_and_sha256sums="$(cat ${package_file})"
+  StripChecksumsFromPackageList "$package_file"
+  VerifyPackageFilesMatch "$package_file" "$DEBIAN_DEP_LIST_ARMEL"
+  APT_REPO=${APR_REPO_ARMEL:=$APT_REPO}
+  InstallIntoSysroot ${files_and_sha256sums}
+  CleanupJailSymlinks
+  HacksAndPatchesARMEL
+  CreateTarBall
+}
+
+#@
 #@ BuildSysrootMips
 #@
 #@    Build everything and package it
@@ -541,6 +594,13 @@ UploadSysrootARM() {
 }
 
 #@
+#@ UploadSysrootARM <revision>
+#@
+UploadSysrootARMEL() {
+  UploadSysroot "$@"
+}
+
+#@
 #@ UploadSysrootMips <revision>
 #@
 UploadSysrootMips() {
@@ -568,6 +628,7 @@ UploadSysrootAll() {
   RunCommand UploadSysrootAmd64 "$@"
   RunCommand UploadSysrootI386 "$@"
   RunCommand UploadSysrootARM "$@"
+  RunCommand UploadSysrootARMEL "$@"
 }
 
 #
@@ -676,6 +737,16 @@ UpdatePackageListsI386() {
 UpdatePackageListsARM() {
   GeneratePackageListARM "$DEBIAN_DEP_LIST_ARM"
   StripChecksumsFromPackageList "$DEBIAN_DEP_LIST_ARM"
+}
+
+#@
+#@ UpdatePackageListsARMEL
+#@
+#@     Regenerate the package lists such that they contain an up-to-date
+#@     list of URLs within the Debian archive. (For armel)
+UpdatePackageListsARMEL() {
+  GeneratePackageListARMEL "$DEBIAN_DEP_LIST_ARMEL"
+  StripChecksumsFromPackageList "$DEBIAN_DEP_LIST_ARMEL"
 }
 
 #@
