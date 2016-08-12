@@ -574,7 +574,7 @@ UploadSysroot() {
   fi
   set -x
   github-release upload \
-      --user atom \
+      --user solderzzc \
       --repo debian-sysroot-image-creator \
       --tag "v${rev}" \
       --name "${DISTRO}_${DIST}_${ARCH_LOWER}_sysroot.tgz" \
@@ -629,7 +629,7 @@ UploadSysrootAll() {
   fi
   set -x
   github-release release \
-      --user atom \
+      --user solderzzc \
       --repo debian-sysroot-image-creator \
       --tag "v${rev}" \
       --name "${rev}" \
